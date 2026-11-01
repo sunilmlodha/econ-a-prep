@@ -206,3 +206,4 @@ tr:last-child td { border-bottom: none; }
 .chart .dot { fill: var(--brand); }
 .chart .bar-rect { fill: var(--brand); }
 .chart .target { stroke: var(--accent); stroke-dasharray: 4 4; }
+.grid + .alert, .alert + .card, .stat-row + .alert { margin-top: 16px; }
