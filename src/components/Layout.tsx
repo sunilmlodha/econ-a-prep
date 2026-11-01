@@ -5,10 +5,13 @@ import type { Role } from '../lib/supabase'
 
 const NAV: { to: string; label: string; ico: string; roles: Role[] }[] = [
   { to: '/', label: 'Dashboard', ico: '◧', roles: ['student', 'parent', 'assessor', 'admin'] },
+  { to: '/course', label: 'Course', ico: '❖', roles: ['student', 'parent', 'assessor', 'admin'] },
   { to: '/timetable', label: 'Study timetable', ico: '▦', roles: ['student', 'parent', 'assessor', 'admin'] },
   { to: '/classes', label: 'Classes & tuition', ico: '◉', roles: ['student', 'parent', 'assessor', 'admin'] },
   { to: '/syllabus', label: 'Syllabus tracker', ico: '☰', roles: ['student', 'parent', 'assessor', 'admin'] },
   { to: '/practice', label: 'Practice bank', ico: '✎', roles: ['student', 'assessor', 'admin'] },
+  { to: '/materials', label: 'Study materials', ico: '▣', roles: ['student', 'parent', 'assessor', 'admin'] },
+  { to: '/mocks', label: 'Mock exams', ico: '⧗', roles: ['student', 'parent', 'assessor', 'admin'] },
   { to: '/exams', label: 'Exams & marking', ico: '✓', roles: ['student', 'parent', 'assessor', 'admin'] },
   { to: '/past-papers', label: 'Past papers', ico: '▤', roles: ['student', 'parent', 'assessor', 'admin'] },
   { to: '/reports', label: 'Reports', ico: '◔', roles: ['student', 'parent', 'assessor', 'admin'] },

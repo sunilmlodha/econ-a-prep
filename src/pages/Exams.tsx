@@ -110,7 +110,7 @@ function StudentExams() {
   }
 
   useEffect(() => {
-    supabase.from('exams').select('*, classes(name), exam_questions(count)').eq('published', true).order('created_at', { ascending: false })
+    supabase.from('exams').select('*, classes(name), exam_questions(count)').eq('published', true).eq('library', false).order('created_at', { ascending: false })
       .then(({ data }) => setExams((data as ExamRow[]) ?? []))
     supabase.from('attempts').select('*, exams(title, level)').eq('student_id', profile!.id).order('started_at', { ascending: false })
       .then(({ data }) => setAttempts((data as AttemptRow[]) ?? []))
@@ -120,7 +120,7 @@ function StudentExams() {
   const now = new Date().toISOString()
   return (
     <>
-      <PageHead title="Exams" sub="Quizzes, homework and timed mocks set by your assessors" />
+      <PageHead title="Exams" sub="Quizzes, homework and timed mocks set by your assessors"><Link className="btn secondary" to="/mocks">Full mock papers</Link></PageHead>
       <Alert kind="error">{error}</Alert>
       <div className="card">
         <h2>Available</h2>

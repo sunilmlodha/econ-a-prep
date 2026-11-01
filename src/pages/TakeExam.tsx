@@ -7,7 +7,7 @@ export default function TakeExam() {
   const { id } = useParams()
   const nav = useNavigate()
   const [exam, setExam] = useState<Exam | null>(null)
-  const [qs, setQs] = useState<Question[]>([])
+  const [qs, setQs] = useState<(Question & { section: string | null })[]>([])
   const [aid, setAid] = useState('')
   const [startedAt, setStartedAt] = useState<number>(0)
   const [skew, setSkew] = useState(0) // server clock minus device clock, ms
@@ -30,7 +30,7 @@ export default function TakeExam() {
       const t0 = Date.now()
       const [e, eq, a, ans, now] = await Promise.all([
         supabase.from('exams').select('*').eq('id', id!).single(),
-        supabase.from('exam_questions').select('position, questions(*)').eq('exam_id', id!).order('position'),
+        supabase.from('exam_questions').select('position, section, questions(*)').eq('exam_id', id!).order('position'),
         supabase.from('attempts').select('started_at').eq('id', attemptId as string).single(),
         supabase.from('attempt_answers').select('question_id, response').eq('attempt_id', attemptId as string),
         supabase.rpc('server_now'),
@@ -42,7 +42,7 @@ export default function TakeExam() {
       // set everything together so the student never types into a half-loaded page
       setAid(attemptId as string)
       setAnswers(m)
-      setQs(((eq.data ?? []) as unknown as { questions: Question }[]).map(x => x.questions))
+      setQs(((eq.data ?? []) as unknown as { section: string | null; questions: Question }[]).map(x => ({ ...x.questions, section: x.section })))
       setStartedAt(new Date(a.data!.started_at).getTime())
       if (now.data) setSkew(new Date(now.data as string).getTime() - (t0 + Date.now()) / 2)
       setExam(e.data as Exam)
@@ -140,7 +140,9 @@ export default function TakeExam() {
         const showContext = q.context && q.context !== lastContext
         if (q.context) lastContext = q.context
         return (
-          <div className="card" key={q.id}>
+          <div key={q.id}>
+          {q.section && q.section !== qs[i - 1]?.section && <h2 className="section-head">Section {q.section}</h2>}
+          <div className="card">
             {showContext && <div className="context" style={{ marginBottom: 12 }}>{q.context}</div>}
             <div className="spread"><strong>Question {i + 1}</strong><span className="badge ok">{q.marks} mark{q.marks > 1 ? 's' : ''}</span></div>
             <p className="question mt">{q.prompt}</p>
@@ -158,6 +160,7 @@ export default function TakeExam() {
             ) : (
               <textarea value={answers[q.id] ?? ''} onChange={e => answer(q.id, e.target.value)} style={{ minHeight: q.marks >= 12 ? 260 : 130 }} aria-label={`Answer to question ${i + 1}`} />
             )}
+          </div>
           </div>
         )
       })}

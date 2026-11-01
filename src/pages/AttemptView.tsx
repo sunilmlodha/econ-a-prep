@@ -10,8 +10,8 @@ interface Key { question_id: string; answer: string | null; explanation: string 
 export default function AttemptView() {
   const { id } = useParams()
   const { profile } = useAuth()
-  const [a, setA] = useState<(Attempt & { exams: { title: string; created_by: string; level: string }; profiles: { full_name: string } }) | null>(null)
-  const [qs, setQs] = useState<Question[]>([])
+  const [a, setA] = useState<(Attempt & { exams: { title: string; created_by: string | null; level: string; library: boolean }; profiles: { full_name: string } }) | null>(null)
+  const [qs, setQs] = useState<(Question & { section: string | null })[]>([])
   const [ans, setAns] = useState<Record<string, Ans>>({})
   const [keys, setKeys] = useState<Record<string, Key>>({})
   const [marks, setMarks] = useState<Record<string, { m: string; c: string }>>({})
@@ -21,15 +21,15 @@ export default function AttemptView() {
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('attempts').select('*, exams(title, created_by, level), profiles!attempts_student_id_fkey(full_name)').eq('id', id!).single()
+    const { data } = await supabase.from('attempts').select('*, exams(title, created_by, level, library), profiles!attempts_student_id_fkey(full_name)').eq('id', id!).single()
     if (!data) return setError('Attempt not found.')
     setA(data as typeof a)
     setFeedback(data.feedback ?? '')
     const [{ data: eq }, { data: an }] = await Promise.all([
-      supabase.from('exam_questions').select('position, questions(*)').eq('exam_id', data.exam_id).order('position'),
+      supabase.from('exam_questions').select('position, section, questions(*)').eq('exam_id', data.exam_id).order('position'),
       supabase.from('attempt_answers').select('*').eq('attempt_id', id!),
     ])
-    const list = ((eq ?? []) as unknown as { questions: Question }[]).map(x => x.questions)
+    const list = ((eq ?? []) as unknown as { section: string | null; questions: Question }[]).map(x => ({ ...x.questions, section: x.section }))
     setQs(list)
     const am: Record<string, Ans> = {}
     const mm: Record<string, { m: string; c: string }> = {}
@@ -45,7 +45,10 @@ export default function AttemptView() {
   }, [id])
   useEffect(() => { load() }, [load])
 
-  const canMark = profile && (profile.role === 'assessor' || profile.role === 'admin') && a?.status !== 'in_progress'
+  // library mocks: the student marks their own paper until an assessor has marked it
+  const selfMark = !!a && a.exams.library && profile?.id === a.student_id && (!a.marked_by || a.marked_by === a.student_id)
+  const canMark = !!a && a.status !== 'in_progress' && (profile?.role === 'assessor' || profile?.role === 'admin' || selfMark)
+  const selfMarked = !!a?.marked_by && a.marked_by === a.student_id
 
   async function saveMarks() {
     setBusy(true); setError(''); setOk('')
@@ -64,7 +67,7 @@ export default function AttemptView() {
   return (
     <>
       <PageHead title={a.exams.title} sub={`${a.profiles?.full_name ?? ''} · submitted ${fmtDateTime(a.submitted_at)}`}>
-        <Link className="btn secondary" to="/exams">Back to exams</Link>
+        <Link className="btn secondary" to={a.exams.library ? '/mocks' : '/exams'}>{a.exams.library ? 'Back to mocks' : 'Back to exams'}</Link>
       </PageHead>
       <div className="grid g4">
         <div className="card stat"><div className="label">Status</div><div className="value" style={{ fontSize: '1.2rem' }}>{a.status === 'marked' ? 'Marked' : a.status === 'submitted' ? 'Awaiting marking' : 'In progress'}</div></div>
@@ -72,7 +75,15 @@ export default function AttemptView() {
         <div className="card stat"><div className="label">Percentage</div><div className="value">{a.percent != null ? `${a.percent}%` : '—'}</div></div>
         <div className="card stat"><div className="label">Indicative grade</div><div className="value"><Grade g={a.grade} /></div></div>
       </div>
-      {a.feedback && !canMark && <div className="card mt"><h2>Assessor feedback</h2><p style={{ whiteSpace: 'pre-wrap' }}>{a.feedback}</p></div>}
+      {selfMark && a.status === 'submitted' && (
+        <Alert>
+          Multiple-choice answers are marked automatically. Now mark your written answers: open each mark scheme, decide the level your answer reaches for
+          knowledge, application, analysis and evaluation, and award marks honestly. Then rewrite your weakest answer using the indicative content.
+          {' '}Your assessor can review and change these marks.
+        </Alert>
+      )}
+      {selfMarked && <Alert>These marks were self-assessed by the student{profile?.role === 'assessor' || profile?.role === 'admin' ? ' — review them and save to confirm or change them.' : '.'}</Alert>}
+      {a.feedback && !canMark && <div className="card mt"><h2>{selfMarked ? 'Reflection' : 'Assessor feedback'}</h2><p style={{ whiteSpace: 'pre-wrap' }}>{a.feedback}</p></div>}
       <Alert kind="error">{error}</Alert>
       <Alert kind="success">{ok}</Alert>
 
@@ -81,8 +92,11 @@ export default function AttemptView() {
         const k = keys[q.id]
         const showContext = q.context && q.context !== lastContext
         if (q.context) lastContext = q.context
+        const newSection = q.section && q.section !== qs[i - 1]?.section
         return (
-          <div className="card mt" key={q.id}>
+          <div key={q.id}>
+          {newSection && <h2 className="section-head">Section {q.section}</h2>}
+          <div className="card mt">
             {showContext && <details><summary className="muted">Extract</summary><div className="context mt">{q.context}</div></details>}
             <div className="spread mt">
               <strong>Question {i + 1}</strong>
@@ -111,18 +125,19 @@ export default function AttemptView() {
                       onChange={e => setMarks({ ...marks, [q.id]: { ...(marks[q.id] ?? { m: '' }), c: e.target.value } })} placeholder="KAA/E feedback" /></label>
                   </div>
                 ) : r?.comment && <p className="mt"><strong>Comment:</strong> {r.comment}</p>}
-                {k?.mark_scheme && <details className="mt"><summary>Mark scheme</summary><div className="scheme mt">{k.mark_scheme}</div></details>}
+                {k?.mark_scheme && <details className="mt" open={selfMark && a.status === 'submitted'}><summary>Mark scheme</summary><div className="scheme mt">{k.mark_scheme}</div></details>}
               </>
             )}
+          </div>
           </div>
         )
       })}
 
       {canMark && (
         <div className="card mt">
-          <h2>Overall feedback</h2>
-          <textarea value={feedback} onChange={e => setFeedback(e.target.value)} placeholder="Strengths, targets, next steps" />
-          <button className="mt" onClick={saveMarks} disabled={busy}>{busy ? 'Saving…' : 'Save marks & feedback'}</button>
+          <h2>{selfMark ? 'Reflection' : 'Overall feedback'}</h2>
+          <textarea value={feedback} onChange={e => setFeedback(e.target.value)} placeholder={selfMark ? 'What went well, what cost you marks, what you will do differently' : 'Strengths, targets, next steps'} />
+          <button className="mt" onClick={saveMarks} disabled={busy}>{busy ? 'Saving…' : selfMark ? 'Save my marks' : 'Save marks & feedback'}</button>
         </div>
       )}
     </>

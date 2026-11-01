@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase, errMsg } from '../lib/supabase'
 import { EXAM_STRUCTURE, THEMES, TOPICS, PEARSON_LINKS, type Level } from '../lib/spec'
@@ -77,7 +78,7 @@ export default function Syllabus() {
                       {topics.filter(t => t.section === sec).map(t => (
                         <tr key={t.code}>
                           <td style={{ width: 64 }}><code>{t.code}</code></td>
-                          <td><strong>{t.title}</strong><div className="muted" style={{ fontSize: '0.85rem' }}>{t.points}</div></td>
+                          <td><Link to={`/course/${t.code}`}><strong>{t.title}</strong></Link><div className="muted" style={{ fontSize: '0.85rem' }}>{t.points}</div></td>
                           <td style={{ width: 190 }}>
                             <div className="conf" role="radiogroup" aria-label={`Confidence for ${t.title}`}>
                               {[0, 1, 2, 3, 4, 5].map(v => (

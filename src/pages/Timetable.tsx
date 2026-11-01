@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase, errMsg } from '../lib/supabase'
 import { buildPlan, defaultExamDate, fmtPlanDate, KIND_LABEL, localIso, planCoverage, type PlanSettings, type PlanWeek } from '../lib/timetable'
 import { PEARSON_LINKS, type Level } from '../lib/spec'
 import { Alert, Bar, Empty, Loading, PageHead, StudentPicker, useViewableStudents } from '../components/ui'
+import Advisor from '../components/Advisor'
+import type { Advice } from '../lib/advisor'
+import type { PlanItem } from '../lib/timetable'
+
+/** Where a plan item takes the student: the lesson, the question bank or the mock papers. */
+const itemLink = (i: PlanItem) => i.topic_code ? `/course/${i.topic_code}` : i.kind === 'paper' ? '/mocks' : i.kind === 'practice' ? '/practice' : null
 
 interface StoredPlan { id: string; settings: PlanSettings; plan: PlanWeek[]; done: string[]; created_at: string }
 
@@ -18,6 +25,7 @@ export default function Timetable() {
   const [editing, setEditing] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const [error, setError] = useState('')
+  const [advice, setAdvice] = useState<Advice | null>(null)
 
   const student = students.find(s => s.id === sid) ?? students[0]
   const isOwner = profile?.role === 'student'
@@ -56,9 +64,10 @@ export default function Timetable() {
         {isOwner && stored && !editing && <button className="secondary" onClick={() => setEditing(true)}>Rebuild plan</button>}
       </PageHead>
       <Alert kind="error">{error}</Alert>
+      <Advisor key={`${student.id}-${stored?.id ?? 'none'}`} student={student} onAdvice={setAdvice} />
 
       {isOwner && (editing || !stored) ? (
-        <PlanForm level={(profile!.year_group ?? 'A') as Level} examYear={profile!.exam_year ?? new Date().getFullYear() + 1}
+        <PlanForm level={(profile!.year_group ?? 'A') as Level} examYear={profile!.exam_year ?? new Date().getFullYear() + 1} recommended={advice?.perWeek}
           initial={stored?.settings} onCancel={stored ? () => setEditing(false) : undefined}
           onSaved={p => { setStored(p); setEditing(false) }} />
       ) : !stored ? (
@@ -85,7 +94,7 @@ export default function Timetable() {
                   <label key={i.id} className={`plan-item ${stored.done.includes(i.id) ? 'done' : ''}`} style={{ fontWeight: 400 }}>
                     <input type="checkbox" checked={stored.done.includes(i.id)} disabled={!isOwner} onChange={() => toggle(i.id)} />
                     <div style={{ flex: 1 }}>
-                      <div className="t">{i.title}</div>
+                      <div className="t">{itemLink(i) ? <Link to={itemLink(i)!} onClick={e => e.stopPropagation()}>{i.title}</Link> : i.title}</div>
                       <small>{fmtPlanDate(i.date)} · {i.minutes} min</small>
                     </div>
                     <span className={`badge kind-${i.kind}`}>{KIND_LABEL[i.kind]}</span>
@@ -101,8 +110,8 @@ export default function Timetable() {
   )
 }
 
-function PlanForm({ level, examYear, initial, onSaved, onCancel }: {
-  level: Level; examYear: number; initial?: PlanSettings
+function PlanForm({ level, examYear, initial, recommended, onSaved, onCancel }: {
+  level: Level; examYear: number; initial?: PlanSettings; recommended?: number
   onSaved: (p: StoredPlan) => void; onCancel?: () => void
 }) {
   const { profile } = useAuth()
@@ -110,18 +119,20 @@ function PlanForm({ level, examYear, initial, onSaved, onCancel }: {
     level, startDate: todayIso(), examDate: defaultExamDate(examYear), hoursPerWeek: 6, sessionMinutes: 60, days: [1, 2, 3, 4, 6],
   })
   const [conf, setConf] = useState<Record<string, number>>({})
+  const [learned, setLearned] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    supabase.from('topic_progress').select('topic_code, confidence').eq('student_id', profile!.id).then(({ data }) => {
+    supabase.from('topic_progress').select('topic_code, confidence, lesson_completed_at').eq('student_id', profile!.id).then(({ data }) => {
       const m: Record<string, number> = {}
       for (const r of data ?? []) m[r.topic_code] = r.confidence
       setConf(m)
+      setLearned(new Set((data ?? []).filter(r => r.lesson_completed_at).map(r => r.topic_code)))
     })
   }, [profile])
 
-  const preview = useMemo(() => buildPlan(s, conf), [s, conf])
+  const preview = useMemo(() => buildPlan(s, conf, learned), [s, conf, learned])
 
   async function save() {
     if (!preview.length) return setError('Pick at least one study day and an exam date in the future.')
@@ -148,7 +159,12 @@ function PlanForm({ level, examYear, initial, onSaved, onCancel }: {
         </label>
         <label>Start date<input type="date" value={s.startDate} onChange={e => setS({ ...s, startDate: e.target.value })} /></label>
         <label>First exam date<input type="date" value={s.examDate} onChange={e => setS({ ...s, examDate: e.target.value })} /></label>
-        <label>Hours per week<input type="number" min={1} max={30} value={s.hoursPerWeek} onChange={e => setS({ ...s, hoursPerWeek: Number(e.target.value) || 1 })} /></label>
+        <label>Hours per week<input type="number" min={1} max={30} value={s.hoursPerWeek} onChange={e => setS({ ...s, hoursPerWeek: Number(e.target.value) || 1 })} />
+          {recommended != null && recommended > 0 && (
+            <small>Recommended for a top grade: <strong>{recommended}h</strong>
+              {s.hoursPerWeek !== Math.min(30, recommended) && <> · <button type="button" className="ghost sm" style={{ padding: 0 }} onClick={() => setS({ ...s, hoursPerWeek: Math.min(30, recommended) })}>use it</button></>}</small>
+          )}
+        </label>
         <label>Session length
           <select value={s.sessionMinutes} onChange={e => setS({ ...s, sessionMinutes: Number(e.target.value) })}>
             {[30, 45, 60, 90].map(m => <option key={m} value={m}>{m} minutes</option>)}

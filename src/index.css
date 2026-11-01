@@ -208,3 +208,64 @@ tr:last-child td { border-bottom: none; }
 .chart .target { stroke: var(--accent); stroke-dasharray: 4 4; }
 .grid + .alert, .alert + .card, .stat-row + .alert { margin-top: 16px; }
 .card + .grid, .grid + .card, .grid + .grid { margin-top: 16px; }
+
+/* Course, lessons, materials, mocks, advisor */
+.lesson-list { display: flex; flex-direction: column; }
+.lesson-row { display: grid; grid-template-columns: 22px 56px 1fr auto 44px; gap: 10px; align-items: center; padding: 8px 6px; border-bottom: 1px solid var(--border); color: var(--text); text-decoration: none; border-radius: 6px; }
+.lesson-row:hover { background: var(--surface-2); }
+.lesson-row .tick { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--good); }
+.lesson-row.done .tick { background: var(--good-soft); border-color: var(--good); }
+.lesson-row .t { font-weight: 500; }
+@media (max-width: 640px) { .lesson-row { grid-template-columns: 22px 1fr 44px; } .lesson-row code, .lesson-row small { display: none; } }
+
+.lesson .lead { font-size: 1.05rem; line-height: 1.6; }
+.lesson ul { padding-left: 20px; margin: 6px 0; }
+.lesson li { margin-bottom: 6px; line-height: 1.55; }
+.lesson section.card > h2 { margin-bottom: 10px; }
+.rich p { line-height: 1.65; margin: 0 0 12px; }
+.rich ul { padding-left: 20px; margin: 0 0 12px; }
+.rich li { margin-bottom: 5px; line-height: 1.55; }
+.terms { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 0; }
+.terms > div { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+.terms dt { font-weight: 700; margin-bottom: 4px; }
+.terms dd { margin: 0; font-size: 0.9rem; line-height: 1.5; }
+.formula { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; }
+.formula .f { font-family: var(--serif); font-size: 1.05rem; margin: 2px 0; }
+.lesson button.option { width: 100%; text-align: left; background: var(--surface); color: var(--text); justify-content: flex-start; }
+.lesson button.option:disabled { cursor: default; opacity: 1; }
+.lesson .complete { border: 1.5px solid var(--brand); }
+.section-head { margin: 24px 0 4px; font-family: var(--serif); }
+
+.diagram { margin: 0; background: var(--surface-2); border-radius: 8px; padding: 10px; }
+.diagram svg { display: block; max-width: 460px; margin: 0 auto; }
+.diagram figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+.d-axis { stroke: var(--text); stroke-width: 1.5; }
+.d-arrowhead { fill: var(--text); }
+.d-axis-label { fill: var(--text); font-size: 12px; font-weight: 600; }
+.d-tick { fill: var(--muted); font-size: 11px; }
+.d-line { fill: none; stroke: var(--brand); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.d-line.dashed { stroke: var(--muted); stroke-dasharray: 6 5; }
+.d-line.shift { stroke: var(--accent); }
+.d-line-label { fill: var(--brand); font-size: 12px; font-weight: 700; }
+.d-line-label.shift { fill: var(--accent); }
+.d-line-label.dashed { fill: var(--muted); }
+.d-guide { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
+.d-point { fill: var(--text); }
+.d-point-label { fill: var(--text); font-size: 11px; font-weight: 600; }
+.d-area { fill: var(--accent); fill-opacity: 0.22; stroke: none; }
+.d-area-label { fill: var(--text); font-size: 11px; font-weight: 600; }
+.d-move { stroke: var(--text); stroke-width: 1.4; }
+
+.material { border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+.material:last-child { border-bottom: none; }
+.mock-row { border-bottom: 1px solid var(--border); padding-bottom: 10px; align-items: flex-start; }
+.mock-row:last-child { border-bottom: none; }
+
+.advisor { border-top: 3px solid var(--brand); }
+.advisor .label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.advisor .big { font-family: var(--serif); font-size: 1.7rem; font-weight: 700; line-height: 1.2; }
+.advisor .big small { font-size: 0.9rem; font-family: var(--font); font-weight: 500; color: var(--muted); }
+.bad-text { color: var(--bad); }
+.priority { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); text-decoration: none; }
+.priority:hover { background: var(--surface-2); }
+.priority .n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: var(--brand-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }

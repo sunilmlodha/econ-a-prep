@@ -31,7 +31,7 @@ export default function ExamBuilder() {
 
   useEffect(() => {
     supabase.from('classes').select('*').eq('assessor_id', profile!.id).then(({ data }) => setClasses((data as ClassRow[]) ?? []))
-    supabase.from('questions').select('*').order('id').then(({ data }) => setQs((data as Question[]) ?? []))
+    supabase.from('questions').select('*').neq('source', 'mock').order('id').then(({ data }) => setQs((data as Question[]) ?? []))
     if (id) {
       supabase.from('attempts').select('id', { count: 'exact', head: true }).eq('exam_id', id).then(({ count }) => setSat(count ?? 0))
       supabase.from('exams').select('*, exam_questions(question_id, position)').eq('id', id).single().then(({ data }) => {

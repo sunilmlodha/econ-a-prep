@@ -6,6 +6,7 @@ import { loadStudentSummary, upcomingSessions, type StudentSummary } from '../li
 import { topicsFor, topicByCode, type Level } from '../lib/spec'
 import { KIND_LABEL, localIso, type PlanWeek } from '../lib/timetable'
 import { Alert, Empty, Grade, Loading, PageHead, Stat, fmtDate, fmtDateTime, useViewableStudents } from '../components/ui'
+import Advisor from '../components/Advisor'
 
 export default function Dashboard() {
   const { profile } = useAuth()
@@ -45,7 +46,7 @@ function StudentHome({ student }: { student: Profile }) {
   useEffect(() => {
     loadStudentSummary(student.id, level).then(setSum).catch(e => setLoadError(errMsg(e)))
     upcomingSessions().then(setSessions)
-    supabase.from('exams').select('*').eq('published', true).order('created_at', { ascending: false }).limit(20)
+    supabase.from('exams').select('*').eq('published', true).eq('library', false).order('created_at', { ascending: false }).limit(20)
       .then(({ data }) => setExams((data as Exam[]) ?? []))
     supabase.from('study_plans').select('plan, done').eq('student_id', student.id).eq('active', true)
       .order('created_at', { ascending: false }).limit(1).maybeSingle()
@@ -71,6 +72,7 @@ function StudentHome({ student }: { student: Profile }) {
         <Stat label="Topics secure" value={`${covered}/${topics.length}`} sub="Confidence 3+ out of 5" />
         <Stat label="Attendance" value={sum.attendancePct != null ? `${sum.attendancePct}%` : '—'} sub={`${sum.attendance.length} sessions recorded`} />
       </div>
+      <div className="mt"><Advisor student={student} /></div>
       <div className="grid g2 mt">
         <div className="card">
           <div className="spread"><h2>Next on your timetable</h2><Link to="/timetable">Open</Link></div>
@@ -100,7 +102,7 @@ function StudentHome({ student }: { student: Profile }) {
                 </div>
               ))}
             </div>
-          ) : <Empty>Nothing due. Try the <Link to="/practice">practice bank</Link>.</Empty>}
+          ) : <Empty>Nothing set by your assessor. Sit a <Link to="/mocks">full mock paper</Link> or use the <Link to="/practice">practice bank</Link>.</Empty>}
         </div>
         <div className="card">
           <div className="spread"><h2>Focus topics</h2><Link to="/syllabus">Tracker</Link></div>
@@ -152,6 +154,7 @@ function ParentHome() {
                   <Stat label="Papers & exams" value={x.results.length + x.attempts.filter(a => a.status !== 'in_progress').length} sub="completed" />
                 </div>
                 {last?.comments && <p className="mt"><strong>Latest comment:</strong> {last.comments}</p>}
+                <div className="mt"><Advisor student={s} compact /></div>
               </>
             )}
           </div>
@@ -174,9 +177,13 @@ function AssessorHome() {
       const ids = new Set((data ?? []).flatMap(c => (c.class_members as { student_id: string }[]).map(m => m.student_id)))
       setStats({ classes: data?.length ?? 0, students: ids.size })
     })
-    supabase.from('attempts').select('id, submitted_at, exams!inner(title, created_by), profiles!attempts_student_id_fkey(full_name)')
-      .eq('status', 'submitted').eq('exams.created_by', profile.id).order('submitted_at')
-      .then(({ data }) => setToMark((data as unknown as typeof toMark) ?? []))
+    // papers this assessor set, plus library mocks sat by students they teach (RLS limits these to their students)
+    const sel = 'id, submitted_at, exams!inner(title, created_by, library), profiles!attempts_student_id_fkey(full_name)'
+    Promise.all([
+      supabase.from('attempts').select(sel).eq('status', 'submitted').eq('exams.created_by', profile.id),
+      supabase.from('attempts').select(sel).eq('status', 'submitted').eq('exams.library', true).neq('student_id', profile.id),
+    ]).then(([own, lib]) => setToMark(([...(own.data ?? []), ...(lib.data ?? [])] as unknown as typeof toMark)
+      .sort((x, y) => x.submitted_at.localeCompare(y.submitted_at))))
     upcomingSessions(8).then(setSessions)
   }, [profile])
 

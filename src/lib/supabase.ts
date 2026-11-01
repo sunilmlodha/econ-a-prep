@@ -76,8 +76,10 @@ export interface Exam {
   opens_at: string | null
   closes_at: string | null
   published: boolean
-  created_by: string
+  created_by: string | null
   created_at: string
+  library: boolean
+  paper: string | null
 }
 
 export interface Attempt {
@@ -92,6 +94,7 @@ export interface Attempt {
   percent: number | null
   grade: string | null
   feedback: string | null
+  marked_by: string | null
 }
 
 export interface PastPaper {

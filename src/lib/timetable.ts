@@ -52,7 +52,7 @@ export const KIND_LABEL: Record<ItemKind, string> = {
  *  2. Consolidation — spaced revision of weak topics plus timed exam-style practice.
  *  3. Exam phase (final 8 weeks) — past papers ramp up, revision targets lowest confidence.
  */
-export function buildPlan(s: PlanSettings, confidence: Record<string, number> = {}): PlanWeek[] {
+export function buildPlan(s: PlanSettings, confidence: Record<string, number> = {}, learned: Set<string> = new Set()): PlanWeek[] {
   const start = parse(s.startDate)
   const exam = parse(s.examDate)
   if (!(exam > start) || s.days.length === 0) return []
@@ -60,7 +60,8 @@ export function buildPlan(s: PlanSettings, confidence: Record<string, number> = 
   const perWeek = Math.max(1, Math.floor((s.hoursPerWeek * 60) / s.sessionMinutes))
   const conf = (t: Topic) => confidence[t.code] ?? 0
   const topics = [...topicsFor(s.level)].sort((a, b) => a.theme - b.theme || conf(a) - conf(b))
-  const learnQueue = topics.filter(t => conf(t) < 4)
+  // topics whose course lesson is done move straight to revision
+  const learnQueue = topics.filter(t => conf(t) < 4 && !learned.has(t.code))
   const papers = s.level === 'AS'
     ? ['AS Paper 1 (Theme 1)', 'AS Paper 2 (Theme 2)']
     : ['A level Paper 1 (Themes 1 & 3)', 'A level Paper 2 (Themes 2 & 4)', 'A level Paper 3 (synoptic)']
@@ -96,7 +97,7 @@ export function buildPlan(s: PlanSettings, confidence: Record<string, number> = 
       if (learnIdx < learnQueue.length) {
         const t = learnQueue[learnIdx++]
         reviseCount[t.code] = (reviseCount[t.code] ?? 0) + 1
-        content.push({ minutes: s.sessionMinutes, kind: 'learn', topic_code: t.code, title: `${t.code} ${t.title}` })
+        content.push({ minutes: s.sessionMinutes, kind: 'learn', topic_code: t.code, title: `Lesson ${t.code} ${t.title}` })
       } else {
         // spaced revision — lowest confidence, least-revised first
         const t = [...topics].sort((a, b) =>
@@ -110,7 +111,7 @@ export function buildPlan(s: PlanSettings, confidence: Record<string, number> = 
     }
     for (let i = 0; i < paperSlots; i++) {
       const p = papers[paperIdx++ % papers.length]
-      content.push({ minutes: Math.max(s.sessionMinutes, s.level === 'AS' ? 90 : 120), kind: 'paper', title: `Timed ${p} — then self-mark with the mark scheme` })
+      content.push({ minutes: Math.max(s.sessionMinutes, s.level === 'AS' ? 90 : 120), kind: 'paper', title: `Timed ${p} (mock or past paper) — then mark it against the mark scheme` })
     }
     if (weeksLeft === 1) content.push({ minutes: s.sessionMinutes, kind: 'review', title: 'Light review: definitions, diagrams and key formulae' })
     const items: PlanItem[] = content.slice(0, cap).map((c, i) => ({ ...c, id: `i${++n}`, date: iso(slots[i]) }))

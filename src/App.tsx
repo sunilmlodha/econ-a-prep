@@ -16,6 +16,10 @@ import AttemptView from './pages/AttemptView'
 import PastPapers from './pages/PastPapers'
 import Reports from './pages/Reports'
 import Profile from './pages/Profile'
+import Course from './pages/Course'
+import Lesson from './pages/Lesson'
+import Materials from './pages/Materials'
+import Mocks from './pages/Mocks'
 
 function Gate() {
   const { session, profile, loading } = useAuth()
@@ -27,6 +31,10 @@ function Gate() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
+        <Route path="course" element={<Course />} />
+        <Route path="course/:code" element={<Lesson />} />
+        <Route path="materials" element={<Materials />} />
+        <Route path="mocks" element={<Mocks />} />
         <Route path="timetable" element={<Timetable />} />
         <Route path="classes" element={<Classes />} />
         <Route path="classes/:id" element={<ClassDetail />} />
