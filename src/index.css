@@ -179,7 +179,7 @@ tr:last-child td { border-bottom: none; }
 .scheme { white-space: pre-wrap; font-size: 0.88rem; background: var(--surface-2); padding: 12px; border-radius: 8px; }
 
 .week { border-left: 3px solid var(--brand); padding-left: 14px; }
-.plan-item { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.plan-item { display: flex; flex-direction: row; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--border); }
 .plan-item:last-child { border-bottom: none; }
 .plan-item input { width: auto; margin-top: 4px; }
 .plan-item.done .t { text-decoration: line-through; color: var(--muted); }
