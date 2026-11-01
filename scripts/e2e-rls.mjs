@@ -90,7 +90,11 @@ const otherSees = await c.other.from('class_sessions').select('id').eq('class_id
 check('non-member cannot see class sessions', (otherSees.data ?? []).length === 0)
 
 // exam: 3 MCQs + 1 short answer
-const { data: mcqs } = await admin.from('questions').select('id').eq('type', 'mcq').eq('theme', 1).limit(3)
+// questions this student has never been examined on, so their keys must still be hidden
+const { data: seen } = await admin.from('attempt_answers').select('question_id, attempts!inner(student_id)').eq('attempts.student_id', people.student.profile.id)
+const seenIds = new Set((seen ?? []).map(r => r.question_id))
+const { data: allMcq } = await admin.from('questions').select('id').eq('type', 'mcq')
+const mcqs = allMcq.filter(q => !seenIds.has(q.id)).sort(() => Math.random() - 0.5).slice(0, 3)
 const { data: short } = await admin.from('questions').select('id, marks').eq('type', 'short').eq('theme', 1).limit(1).single()
 const { data: exam } = await c.assessor.from('exams').insert({ title: `Demo Theme 1 quiz ${new Date().toISOString().slice(0, 16)}`, level: 'A', kind: 'quiz', class_id: cls.id, duration_minutes: 20, published: true }).select().single()
 const eqIns = await c.assessor.from('exam_questions').insert([...mcqs, short].map((q, i) => ({ exam_id: exam.id, question_id: q.id, position: i })))
