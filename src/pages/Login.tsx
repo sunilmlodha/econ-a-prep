@@ -102,8 +102,9 @@ export default function Login() {
         <h1>Edexcel A Level Economics A, organised.</h1>
         <p>One place for classes, tuition, exams and revision — for AS (8EC0) and A level (9EC0).</p>
         <ul>
-          <li>Personal study timetable built around your exam dates</li>
-          <li>Timed exams with auto-marked MCQs and assessor marking</li>
+          <li>The complete course: 87 lessons with diagrams, model answers and quizzes</li>
+          <li>10 full-length timed mock papers with mark schemes</li>
+          <li>A* readiness advisor and a study timetable built around your exam dates</li>
           <li>Past paper tracker for every series 2016–2026</li>
           <li>Reports shared with parents and assessors</li>
         </ul>
