@@ -85,30 +85,31 @@ export function buildPlan(s: PlanSettings, confidence: Record<string, number> = 
     const phase = examPhase ? 'Exam preparation' : learnIdx < learnQueue.length ? 'Foundation' : 'Consolidation'
     const paperSlots = !examPhase ? 0 : weeksLeft <= 3 ? Math.min(3, perWeek) : weeksLeft <= 5 ? Math.min(2, perWeek) : 1
     const practiceSlots = examPhase || phase === 'Consolidation' ? Math.min(1, perWeek - paperSlots) : perWeek >= 4 ? 1 : 0
-    const items: PlanItem[] = []
-
-    for (let i = 0; i < perWeek; i++) {
-      const date = iso(days[i % days.length])
-      const id = `i${++n}`
-      if (weeksLeft === 1 && i === perWeek - 1) {
-        items.push({ id, date, minutes: s.sessionMinutes, kind: 'review', title: 'Light review: definitions, diagrams and key formulae' })
-      } else if (i < paperSlots) {
-        const p = papers[paperIdx++ % papers.length]
-        items.push({ id, date, minutes: Math.max(s.sessionMinutes, s.level === 'AS' ? 90 : 120), kind: 'paper', title: `Timed ${p} — then self-mark with the mark scheme` })
-      } else if (i < paperSlots + practiceSlots) {
-        items.push({ id, date, minutes: s.sessionMinutes, kind: 'practice', title: 'Exam technique: one data-response set or a 25-mark essay plan' })
-      } else if (!examPhase && learnIdx < learnQueue.length) {
+    // date slots in calendar order; content is queued learn → revise → practice → papers
+    const slots = Array.from({ length: perWeek }, (_, i) => days[i % days.length]).sort((a, b) => a.getTime() - b.getTime())
+    const content: Omit<PlanItem, 'id' | 'date'>[] = []
+    const studySlots = perWeek - paperSlots - practiceSlots - (weeksLeft === 1 ? 1 : 0)
+    for (let i = 0; i < studySlots; i++) {
+      if (!examPhase && learnIdx < learnQueue.length) {
         const t = learnQueue[learnIdx++]
-        items.push({ id, date, minutes: s.sessionMinutes, kind: 'learn', topic_code: t.code, title: `${t.code} ${t.title}` })
+        content.push({ minutes: s.sessionMinutes, kind: 'learn', topic_code: t.code, title: `${t.code} ${t.title}` })
       } else {
         // spaced revision — lowest confidence, least-revised first
         const t = [...topics].sort((a, b) =>
           conf(a) + (reviseCount[a.code] ?? 0) - (conf(b) + (reviseCount[b.code] ?? 0)))[0]
         reviseCount[t.code] = (reviseCount[t.code] ?? 0) + 1
-        items.push({ id, date, minutes: s.sessionMinutes, kind: 'revise', topic_code: t.code, title: `${t.code} ${t.title}` })
+        content.push({ minutes: s.sessionMinutes, kind: 'revise', topic_code: t.code, title: `${t.code} ${t.title}` })
       }
     }
-    items.sort((a, b) => a.date.localeCompare(b.date))
+    for (let i = 0; i < practiceSlots; i++) {
+      content.push({ minutes: s.sessionMinutes, kind: 'practice', title: 'Exam technique: one data-response set or a 25-mark essay plan' })
+    }
+    for (let i = 0; i < paperSlots; i++) {
+      const p = papers[paperIdx++ % papers.length]
+      content.push({ minutes: Math.max(s.sessionMinutes, s.level === 'AS' ? 90 : 120), kind: 'paper', title: `Timed ${p} — then self-mark with the mark scheme` })
+    }
+    if (weeksLeft === 1) content.push({ minutes: s.sessionMinutes, kind: 'review', title: 'Light review: definitions, diagrams and key formulae' })
+    const items: PlanItem[] = content.slice(0, perWeek).map((c, i) => ({ ...c, id: `i${++n}`, date: iso(slots[i]) }))
     weeks.push({ weekStart: iso(w), phase, items })
   }
   return weeks
