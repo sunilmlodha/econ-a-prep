@@ -97,6 +97,7 @@ code { font-size: 0.9em; background: var(--surface-2); padding: 1px 5px; border-
 /* surfaces */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
 .card + .card { margin-top: 16px; }
+.grid > .card + .card { margin-top: 0; }
 .card h2 { margin-bottom: 12px; }
 .grid { display: grid; gap: 16px; }
 .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
