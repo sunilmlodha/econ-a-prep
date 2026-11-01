@@ -10,6 +10,7 @@ export default function TakeExam() {
   const [qs, setQs] = useState<Question[]>([])
   const [aid, setAid] = useState('')
   const [startedAt, setStartedAt] = useState<number>(0)
+  const [skew, setSkew] = useState(0) // server clock minus device clock, ms
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [error, setError] = useState('')
@@ -34,6 +35,9 @@ export default function TakeExam() {
       setExam(e as Exam)
       setQs(((eq ?? []) as unknown as { questions: Question }[]).map(x => x.questions))
       setStartedAt(new Date(a!.started_at).getTime())
+      const t0 = Date.now()
+      const { data: now } = await supabase.rpc('server_now')
+      if (now) setSkew(new Date(now as string).getTime() - (t0 + Date.now()) / 2)
       const m: Record<string, string> = {}
       for (const r of ans ?? []) m[r.question_id] = r.response ?? ''
       setAnswers(m)
@@ -60,14 +64,14 @@ export default function TakeExam() {
     if (!exam?.duration_minutes || !startedAt) return
     const end = startedAt + exam.duration_minutes * 60_000
     const tick = () => {
-      const s = Math.max(0, Math.round((end - Date.now()) / 1000))
+      const s = Math.max(0, Math.round((end - (Date.now() + skew)) / 1000))
       setLeft(s)
       if (s === 0) submit(true)
     }
     tick()
     const h = setInterval(tick, 1000)
     return () => clearInterval(h)
-  }, [exam, startedAt, submit])
+  }, [exam, startedAt, skew, submit])
 
   function answer(qid: string, value: string) {
     setAnswers(a => ({ ...a, [qid]: value }))
