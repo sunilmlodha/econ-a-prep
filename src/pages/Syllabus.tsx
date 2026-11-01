@@ -85,7 +85,7 @@ export default function Syllabus() {
                                   className={(conf?.[t.code] ?? 0) >= v && v > 0 ? 'on' : ''} onClick={() => rate(t.code, v)}>{v}</button>
                               ))}
                             </div>
-                            <small>{LABELS[conf?.[t.code] ?? 0]}</small>
+                            <div><small>{LABELS[conf?.[t.code] ?? 0]}</small></div>
                           </td>
                         </tr>
                       ))}
