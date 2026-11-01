@@ -39,7 +39,7 @@ export default function ClassDetail() {
 
   async function addMember(e: FormEvent) {
     e.preventDefault(); setError(''); setOk('')
-    const ident = addId.includes('@') || /^[0-9a-f]{8}$/i.test(addId.trim()) ? addId.trim() : normaliseMobile(addId)
+    const ident = addId.includes('@') || /^[0-9a-f]{12}$/i.test(addId.trim()) ? addId.trim() : normaliseMobile(addId)
     const { error } = await supabase.rpc('add_student_to_class', { cid: id, identifier: ident })
     if (error) return setError(errMsg(error))
     setAddId(''); setOk('Student added.'); load()

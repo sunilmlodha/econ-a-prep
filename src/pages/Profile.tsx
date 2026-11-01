@@ -47,8 +47,9 @@ export default function Profile() {
 
   async function link(e: FormEvent) {
     e.preventDefault(); setMsg({ ok: '', err: '' })
-    const { error } = await supabase.rpc('link_child', { code })
+    const { data, error } = await supabase.rpc('link_child', { code })
     if (error) return setMsg({ ok: '', err: errMsg(error) })
+    if (!data) return setMsg({ ok: '', err: 'No student found with that link code.' })
     setCode(''); setMsg({ ok: 'Student linked.', err: '' }); loadLinks()
   }
 
@@ -105,7 +106,7 @@ export default function Profile() {
             <div className="card">
               <h2>Link a student</h2>
               <form className="row" onSubmit={link}>
-                <input style={{ flex: 1 }} required value={code} onChange={e => setCode(e.target.value)} placeholder="8-character link code" aria-label="Link code" />
+                <input style={{ flex: 1 }} required value={code} onChange={e => setCode(e.target.value)} placeholder="12-character link code" aria-label="Link code" />
                 <button>Link</button>
               </form>
               {children.length > 0 && <div className="stack mt">{children.map(c => <div key={c.id} className="spread"><span>{c.full_name} <small>{c.email}</small></span><button className="ghost sm" onClick={() => unlink(profile!.id, c.id)}>Remove</button></div>)}</div>}

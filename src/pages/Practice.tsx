@@ -12,7 +12,7 @@ export default function Practice() {
   const [i, setI] = useState(0)
 
   useEffect(() => {
-    supabase.from('questions').select('*').order('id').then(({ data }) => setQs((data as Question[]) ?? []))
+    supabase.from('questions').select('*').eq('source', 'original').order('id').then(({ data }) => setQs((data as Question[]) ?? []))
   }, [])
 
   const list = useMemo(() => (qs ?? []).filter(q => (!theme || q.theme === theme) && (!type || q.type === type)), [qs, theme, type])

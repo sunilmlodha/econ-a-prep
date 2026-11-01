@@ -47,7 +47,7 @@ for (const [k, p] of Object.entries(people)) {
 }
 
 check('roles assigned by trigger', people.assessor.profile.role === 'assessor' && people.student.profile.role === 'student' && people.parent.profile.role === 'parent')
-check('student has link code', /^[0-9A-F]{8}$/.test(people.student.profile.link_code ?? ''))
+check('student has link code', /^[0-9A-F]{12}$/.test(people.student.profile.link_code ?? ''))
 
 // role escalation blocked
 const esc = await c.student.from('profiles').update({ role: 'admin' }).eq('id', people.student.profile.id)
@@ -100,6 +100,19 @@ const { data: exam } = await c.assessor.from('exams').insert({ title: `Demo Them
 const eqIns = await c.assessor.from('exam_questions').insert([...mcqs, short].map((q, i) => ({ exam_id: exam.id, question_id: q.id, position: i })))
 check('assessor builds exam', !eqIns.error, eqIns.error?.message)
 
+const prePeek = await c.student.rpc('reveal_key', { qid: mcqs[0].id })
+check('practice reveal blocked for a set exam before starting', !!prePeek.error, prePeek.error?.message)
+const anonPeek = await client().rpc('reveal_key', { qid: mcqs[0].id })
+check('anonymous callers cannot reveal keys', !!anonPeek.error)
+const parentPeek = await c.parent.rpc('reveal_key', { qid: mcqs[0].id })
+check('parents cannot reveal keys', !!parentPeek.error)
+const { data: future } = await c.assessor.from('exams').insert({ title: 'Demo future mock', level: 'A', kind: 'mock', class_id: cls.id, published: true, opens_at: new Date(Date.now() + 86400000).toISOString() }).select().single()
+await c.assessor.from('exam_questions').insert({ exam_id: future.id, question_id: short.id, position: 0 })
+const futureQs = await c.student.from('exam_questions').select('question_id').eq('exam_id', future.id)
+check('questions of an unopened exam stay hidden', (futureQs.data ?? []).length === 0)
+const ownerQs = await c.assessor.from('exam_questions').select('question_id').eq('exam_id', future.id)
+check('exam owner still sees its questions', (ownerQs.data ?? []).length === 1)
+await c.assessor.from('exams').delete().eq('id', future.id)
 const keysBefore = await c.student.from('question_keys').select('*').in('question_id', mcqs.map(q => q.id))
 check('student cannot read answer keys before sitting', (keysBefore.data ?? []).length === 0)
 const [s1, s2] = await Promise.all([c.student.rpc('start_attempt', { eid: exam.id }), c.student.rpc('start_attempt', { eid: exam.id })])
@@ -139,7 +152,15 @@ check('cannot log results for someone else', !!ppHack.error)
 const rep = await c.assessor.from('reports').insert({ student_id: people.student.profile.id, period: 'Autumn term', working_grade: 'B', predicted_grade: 'A', effort: 4, comments: 'Strong analysis; work on evaluation.' })
 check('assessor writes report', !rep.error, rep.error?.message)
 
+// staff contact details
+const staffLeak = await c.other.from('profiles').select('email').eq('id', people.assessor.profile.id)
+check('students outside a class cannot see assessor contact details', (staffLeak.data ?? []).length === 0)
+const staffOk = await c.student.from('profiles').select('full_name').eq('id', people.assessor.profile.id)
+check('students see their own assessor', (staffOk.data ?? []).length === 1)
+
 // parent linking
+const badLink = await c.parent.rpc('link_child', { code: 'DEADBEEF0000' })
+check('wrong link code links nobody', !badLink.error && badLink.data === null)
 const link = await c.parent.rpc('link_child', { code: people.student.profile.link_code })
 check('parent links child with code', !link.error, link.error?.message)
 const pAttempts = await c.parent.from('attempts').select('id').eq('student_id', people.student.profile.id)
