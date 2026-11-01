@@ -45,6 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut: async () => {
       await supabase.auth.signOut()
       setProfile(null)
+      // the next person to sign in on this device should start on their own dashboard
+      window.location.hash = '#/'
     },
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
