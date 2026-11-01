@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { supabase, type Exam, type Profile } from '../lib/supabase'
+import { supabase, errMsg, type Exam, type Profile } from '../lib/supabase'
 import { loadStudentSummary, upcomingSessions, type StudentSummary } from '../lib/data'
 import { topicsFor, topicByCode, type Level } from '../lib/spec'
-import { KIND_LABEL, type PlanWeek } from '../lib/timetable'
-import { Empty, Grade, Loading, PageHead, Stat, fmtDate, fmtDateTime, useViewableStudents } from '../components/ui'
+import { KIND_LABEL, localIso, type PlanWeek } from '../lib/timetable'
+import { Alert, Empty, Grade, Loading, PageHead, Stat, fmtDate, fmtDateTime, useViewableStudents } from '../components/ui'
 
 export default function Dashboard() {
   const { profile } = useAuth()
@@ -40,9 +40,10 @@ function StudentHome({ student }: { student: Profile }) {
   const [sessions, setSessions] = useState<Awaited<ReturnType<typeof upcomingSessions>>>([])
   const [exams, setExams] = useState<Exam[]>([])
   const [plan, setPlan] = useState<{ plan: PlanWeek[]; done: string[] } | null>(null)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    loadStudentSummary(student.id, level).then(setSum)
+    loadStudentSummary(student.id, level).then(setSum).catch(e => setLoadError(errMsg(e)))
     upcomingSessions().then(setSessions)
     supabase.from('exams').select('*').eq('published', true).order('created_at', { ascending: false }).limit(20)
       .then(({ data }) => setExams((data as Exam[]) ?? []))
@@ -51,13 +52,14 @@ function StudentHome({ student }: { student: Profile }) {
       .then(({ data }) => setPlan(data as { plan: PlanWeek[]; done: string[] } | null))
   }, [student.id, level])
 
+  if (loadError) return <Alert kind="error">Could not load your progress: {loadError}. Refresh to try again.</Alert>
   if (!sum) return <Loading />
   const sat = new Set(sum.attempts.filter(a => a.status !== 'in_progress').map(a => a.exam_id))
   const openExams = exams.filter(e => !sat.has(e.id) && (!e.closes_at || new Date(e.closes_at) > new Date()))
   const topics = topicsFor(level)
   const covered = topics.filter(t => (sum.progress[t.code] ?? 0) >= 3).length
   const weak = topics.filter(t => (sum.progress[t.code] ?? 0) <= 2).slice(0, 5)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localIso()
   const upcoming = plan?.plan.flatMap(w => w.items).filter(i => i.date >= today && !plan.done.includes(i.id)).slice(0, 5) ?? []
 
   return (
@@ -118,10 +120,13 @@ function StudentHome({ student }: { student: Profile }) {
 function ParentHome() {
   const { students, loading } = useViewableStudents()
   const [sums, setSums] = useState<Record<string, StudentSummary>>({})
+  const [loadError, setLoadError] = useState('')
   const [sessions, setSessions] = useState<Awaited<ReturnType<typeof upcomingSessions>>>([])
 
   useEffect(() => {
-    students.forEach(s => loadStudentSummary(s.id, (s.year_group ?? 'A') as Level).then(x => setSums(m => ({ ...m, [s.id]: x }))))
+    students.forEach(s => loadStudentSummary(s.id, (s.year_group ?? 'A') as Level)
+      .then(x => setSums(m => ({ ...m, [s.id]: x })))
+      .catch(e => setLoadError(errMsg(e))))
     upcomingSessions(6).then(setSessions)
   }, [students])
 
@@ -129,6 +134,7 @@ function ParentHome() {
   return (
     <>
       <PageHead title="Parent dashboard" sub="Progress, attendance and reports for your linked students" />
+      <Alert kind="error">{loadError && `Could not load progress: ${loadError}`}</Alert>
       {students.length === 0 ? (
         <Empty>No students linked yet. Ask your child for their <strong>link code</strong> (on their Profile page), then add it on <Link to="/profile">Profile & links</Link>.</Empty>
       ) : students.map(s => {

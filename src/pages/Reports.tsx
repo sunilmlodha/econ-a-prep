@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase, errMsg } from '../lib/supabase'
 import { loadStudentSummary, type StudentSummary } from '../lib/data'
-import { GRADES } from '../lib/grades'
+import { BOUNDARIES, GRADES } from '../lib/grades'
 import { THEMES, TOPICS, type Level } from '../lib/spec'
 import { Alert, Bar, Empty, Grade, LineChart, Loading, PageHead, Stat, StudentPicker, fmtDate, useViewableStudents } from '../components/ui'
 
@@ -13,12 +13,20 @@ export default function Reports() {
   const { students, loading } = useViewableStudents()
   const [sum, setSum] = useState<StudentSummary | null>(null)
   const [writing, setWriting] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const student = students.find(s => s.id === params.get('student')) ?? students[0]
   const level = (student?.year_group ?? 'A') as Level
   const staff = profile?.role === 'assessor' || profile?.role === 'admin'
 
-  const load = () => student && loadStudentSummary(student.id, level).then(setSum)
-  useEffect(() => { setSum(null); load() }, [student?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const current = useRef('')
+  const load = () => {
+    if (!student) return
+    const sid = (current.current = student.id)
+    loadStudentSummary(student.id, level)
+      .then(x => { if (current.current === sid) setSum(x) }) // ignore a slower response for a previous student
+      .catch(e => { if (current.current === sid) setLoadError(errMsg(e)) })
+  }
+  useEffect(() => { setSum(null); setLoadError(''); load() }, [student?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <Loading />
   if (!student) return <><PageHead title="Reports" /><Empty>{profile?.role === 'parent' ? 'Link a student on your Profile page to see their reports.' : 'No students in your classes yet.'}</Empty></>
@@ -28,7 +36,7 @@ export default function Reports() {
     ...sum.attempts.filter(a => a.status === 'marked' && a.percent != null)
       .map(a => ({ d: (a.submitted_at ?? a.started_at).slice(0, 10), label: new Date(a.submitted_at ?? a.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), value: Number(a.percent) })),
   ].sort((x, y) => x.d.localeCompare(y.d)) : []
-  const targetPct = student.target_grade ? { 'A*': 74, A: 63, B: 53, C: 43, D: 34, E: 25 }[student.target_grade] : undefined
+  const targetPct = BOUNDARIES[level].find(([g]) => g === student.target_grade)?.[1]
 
   return (
     <>
@@ -37,7 +45,8 @@ export default function Reports() {
         {staff && <button onClick={() => setWriting(true)}>Write report</button>}
         <button className="secondary" onClick={() => window.print()}>Print / PDF</button>
       </PageHead>
-      {!sum ? <Loading /> : (
+      <Alert kind="error">{loadError}</Alert>
+      {!sum ? (loadError ? null : <Loading />) : (
         <>
           <div className="grid g4">
             <Stat label="Data-driven prediction" value={<Grade g={sum.predicted} />} sub={sum.avgPct != null ? `${sum.avgPct}% across recent papers & mocks` : 'Needs scored work'} />

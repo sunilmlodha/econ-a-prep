@@ -19,8 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = useCallback(async (uid: string | undefined) => {
     if (!uid) return setProfile(null)
-    const { data } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
-    setProfile(data as Profile | null)
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
+    // a failed refresh (flaky network) keeps the current profile instead of blanking the app mid-exam
+    if (error) return
+    // keep the same object when nothing changed, so pages don't reload and lose unsaved edits
+    setProfile(prev => (prev && data && JSON.stringify(prev) === JSON.stringify(data) ? prev : (data as Profile | null)))
   }, [])
 
   useEffect(() => {

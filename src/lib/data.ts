@@ -32,6 +32,9 @@ export async function loadStudentSummary(sid: string, level: Level): Promise<Stu
     supabase.from('topic_progress').select('topic_code, confidence').eq('student_id', sid),
     supabase.from('reports').select('*').eq('student_id', sid).order('created_at', { ascending: false }),
   ])
+  // a silent partial load would publish a wrong predicted grade, so fail loudly instead
+  const failed = [a, r, at, p, rep].find(x => x.error)
+  if (failed?.error) throw failed.error
   const attempts = (a.data ?? []) as AttemptWithExam[]
   const results = (r.data ?? []) as ResultWithPaper[]
   const attendance = (at.data ?? []) as unknown as AttendanceRow[]

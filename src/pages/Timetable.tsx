@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase, errMsg } from '../lib/supabase'
-import { buildPlan, defaultExamDate, KIND_LABEL, type PlanSettings, type PlanWeek } from '../lib/timetable'
+import { buildPlan, defaultExamDate, fmtPlanDate, KIND_LABEL, localIso, planCoverage, type PlanSettings, type PlanWeek } from '../lib/timetable'
 import { PEARSON_LINKS, type Level } from '../lib/spec'
-import { Alert, Bar, Empty, Loading, PageHead, StudentPicker, fmtDate, useViewableStudents } from '../components/ui'
+import { Alert, Bar, Empty, Loading, PageHead, StudentPicker, useViewableStudents } from '../components/ui'
 
 interface StoredPlan { id: string; settings: PlanSettings; plan: PlanWeek[]; done: string[]; created_at: string }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const todayIso = () => new Date().toISOString().slice(0, 10)
+const todayIso = () => localIso()
 
 export default function Timetable() {
   const { profile } = useAuth()
@@ -33,10 +33,11 @@ export default function Timetable() {
 
   async function toggle(id: string) {
     if (!stored || !isOwner) return
-    const done = stored.done.includes(id) ? stored.done.filter(x => x !== id) : [...stored.done, id]
-    setStored({ ...stored, done })
-    const { error } = await supabase.from('study_plans').update({ done }).eq('id', stored.id)
+    const isDone = !stored.done.includes(id)
+    setStored(p => p && { ...p, done: isDone ? [...p.done, id] : p.done.filter(x => x !== id) })
+    const { data, error } = await supabase.rpc('toggle_plan_item', { pid: stored.id, item: id, is_done: isDone })
     if (error) setError(errMsg(error))
+    else if (data) setStored(p => p && { ...p, done: data as string[] })
   }
 
   if (loading || (student && stored === undefined)) return <Loading />
@@ -44,7 +45,8 @@ export default function Timetable() {
 
   const items = stored?.plan.flatMap(w => w.items) ?? []
   const pctDone = items.length ? Math.round((stored!.done.length * 100) / items.length) : 0
-  const thisWeek = new Date(Date.now() - ((new Date().getDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10)
+  const now = new Date()
+  const thisWeek = localIso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)))
   const weeks = (stored?.plan ?? []).filter(w => showAll || w.weekStart >= thisWeek)
 
   return (
@@ -69,7 +71,7 @@ export default function Timetable() {
             <div className="spread">
               <div>
                 <strong>{stored.settings.level === 'AS' ? 'AS level' : 'A level'}</strong> · {stored.settings.hoursPerWeek}h/week ·
-                {' '}{stored.settings.days.map(d => DAYS[d]).join(', ')} · first exam {fmtDate(stored.settings.examDate)}
+                {' '}{stored.settings.days.map(d => DAYS[d]).join(', ')} · first exam {fmtPlanDate(stored.settings.examDate, { day: 'numeric', month: 'short', year: 'numeric' })}
               </div>
               <label className="inline"><input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} /> Show past weeks</label>
             </div>
@@ -78,13 +80,13 @@ export default function Timetable() {
           <div className="grid g2 mt">
             {weeks.map(w => (
               <div className="card week" key={w.weekStart}>
-                <div className="spread"><h3>Week of {fmtDate(w.weekStart)}</h3><span className="badge">{w.phase}</span></div>
+                <div className="spread"><h3>Week of {fmtPlanDate(w.weekStart, { day: 'numeric', month: 'short', year: 'numeric' })}</h3><span className="badge">{w.phase}</span></div>
                 {w.items.map(i => (
                   <label key={i.id} className={`plan-item ${stored.done.includes(i.id) ? 'done' : ''}`} style={{ fontWeight: 400 }}>
                     <input type="checkbox" checked={stored.done.includes(i.id)} disabled={!isOwner} onChange={() => toggle(i.id)} />
                     <div style={{ flex: 1 }}>
                       <div className="t">{i.title}</div>
-                      <small>{new Date(i.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {i.minutes} min</small>
+                      <small>{fmtPlanDate(i.date)} · {i.minutes} min</small>
                     </div>
                     <span className={`badge kind-${i.kind}`}>{KIND_LABEL[i.kind]}</span>
                   </label>
@@ -124,14 +126,16 @@ function PlanForm({ level, examYear, initial, onSaved, onCancel }: {
   async function save() {
     if (!preview.length) return setError('Pick at least one study day and an exam date in the future.')
     setBusy(true); setError('')
-    await supabase.from('study_plans').update({ active: false }).eq('student_id', profile!.id).eq('active', true)
+    // insert first: if it fails the existing plan stays active
     const { data, error } = await supabase.from('study_plans').insert({ settings: s, plan: preview, done: [] }).select().single()
+    if (error) { setBusy(false); return setError(errMsg(error)) }
+    await supabase.from('study_plans').update({ active: false }).eq('student_id', profile!.id).eq('active', true).neq('id', data.id)
     setBusy(false)
-    if (error) return setError(errMsg(error))
     onSaved(data as StoredPlan)
   }
 
   const sessions = preview.reduce((n, w) => n + w.items.length, 0)
+  const coverage = planCoverage(preview, s.level)
   return (
     <div className="card">
       <h2>Build your plan</h2>
@@ -164,6 +168,11 @@ function PlanForm({ level, examYear, initial, onSaved, onCancel }: {
         The default exam date is an estimate. Check the official <a href={PEARSON_LINKS.timetables} target="_blank" rel="noreferrer">Pearson exam timetable</a> and adjust.
         Topics you rate as weak in the <a href="#/syllabus">syllabus tracker</a> are scheduled first and revisited more often.
       </p>
+      {preview.length > 0 && coverage.covered < coverage.total && (
+        <Alert kind="error">
+          This plan only reaches {coverage.covered} of {coverage.total} specification topics before the exam. Add more hours per week or study days.
+        </Alert>
+      )}
       <Alert kind="error">{error}</Alert>
       <div className="spread mt">
         <small>{preview.length} weeks · {sessions} sessions · {preview.filter(w => w.phase === 'Exam preparation').length} weeks of exam preparation</small>

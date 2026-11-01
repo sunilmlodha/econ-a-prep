@@ -81,17 +81,21 @@ export function buildPlan(s: PlanSettings, confidence: Record<string, number> = 
       .sort((a, b) => a.getTime() - b.getTime())
     if (days.length === 0) continue
 
+    // a partial week (first or last) gets a proportional share of sessions, not a full week crammed in
+    const cap = Math.max(1, Math.round((perWeek * days.length) / s.days.length))
     const examPhase = weeksLeft <= 8
     const phase = examPhase ? 'Exam preparation' : learnIdx < learnQueue.length ? 'Foundation' : 'Consolidation'
-    const paperSlots = !examPhase ? 0 : weeksLeft <= 3 ? Math.min(3, perWeek) : weeksLeft <= 5 ? Math.min(2, perWeek) : 1
-    const practiceSlots = examPhase || phase === 'Consolidation' ? Math.min(1, perWeek - paperSlots) : perWeek >= 4 ? 1 : 0
+    const paperSlots = !examPhase ? 0 : Math.min(cap - 1, weeksLeft <= 3 ? 3 : weeksLeft <= 5 ? 2 : 1)
+    const practiceSlots = examPhase || phase === 'Consolidation' ? Math.min(1, cap - paperSlots - 1) : cap >= 4 ? 1 : 0
     // date slots in calendar order; content is queued learn → revise → practice → papers
-    const slots = Array.from({ length: perWeek }, (_, i) => days[i % days.length]).sort((a, b) => a.getTime() - b.getTime())
+    const slots = Array.from({ length: cap }, (_, i) => days[i % days.length]).sort((a, b) => a.getTime() - b.getTime())
     const content: Omit<PlanItem, 'id' | 'date'>[] = []
-    const studySlots = perWeek - paperSlots - practiceSlots - (weeksLeft === 1 ? 1 : 0)
+    const studySlots = Math.max(0, cap - paperSlots - practiceSlots - (weeksLeft === 1 ? 1 : 0))
     for (let i = 0; i < studySlots; i++) {
-      if (!examPhase && learnIdx < learnQueue.length) {
+      // unlearnt topics always come first, even in the exam phase, so no theme is skipped
+      if (learnIdx < learnQueue.length) {
         const t = learnQueue[learnIdx++]
+        reviseCount[t.code] = (reviseCount[t.code] ?? 0) + 1
         content.push({ minutes: s.sessionMinutes, kind: 'learn', topic_code: t.code, title: `${t.code} ${t.title}` })
       } else {
         // spaced revision — lowest confidence, least-revised first
@@ -109,8 +113,24 @@ export function buildPlan(s: PlanSettings, confidence: Record<string, number> = 
       content.push({ minutes: Math.max(s.sessionMinutes, s.level === 'AS' ? 90 : 120), kind: 'paper', title: `Timed ${p} — then self-mark with the mark scheme` })
     }
     if (weeksLeft === 1) content.push({ minutes: s.sessionMinutes, kind: 'review', title: 'Light review: definitions, diagrams and key formulae' })
-    const items: PlanItem[] = content.slice(0, perWeek).map((c, i) => ({ ...c, id: `i${++n}`, date: iso(slots[i]) }))
+    const items: PlanItem[] = content.slice(0, cap).map((c, i) => ({ ...c, id: `i${++n}`, date: iso(slots[i]) }))
     weeks.push({ weekStart: iso(w), phase, items })
   }
   return weeks
 }
+
+/** How many spec topics the plan schedules at least once (learn or revise). */
+export function planCoverage(weeks: PlanWeek[], level: Level) {
+  const seen = new Set(weeks.flatMap(w => w.items.map(i => i.topic_code)).filter(Boolean))
+  const all = topicsFor(level)
+  return { covered: all.filter(t => seen.has(t.code)).length, total: all.length }
+}
+
+/** Today's date in the user's own time zone, as yyyy-mm-dd. */
+export function localIso(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Formats a plan date (yyyy-mm-dd) without shifting it by the viewer's time zone. */
+export const fmtPlanDate = (s: string, opts: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' }) =>
+  new Date(s + 'T00:00:00Z').toLocaleDateString('en-GB', { ...opts, timeZone: 'UTC' })

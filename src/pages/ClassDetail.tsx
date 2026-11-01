@@ -47,7 +47,8 @@ export default function ClassDetail() {
 
   async function removeMember(sid: string) {
     if (!confirm('Remove this student from the class?')) return
-    await supabase.from('class_members').delete().eq('class_id', id!).eq('student_id', sid)
+    const { error } = await supabase.from('class_members').delete().eq('class_id', id!).eq('student_id', sid)
+    if (error) return setError(errMsg(error))
     load()
   }
 
@@ -59,13 +60,15 @@ export default function ClassDetail() {
 
   async function deleteSession(sid: string) {
     if (!confirm('Delete this session and its attendance?')) return
-    await supabase.from('class_sessions').delete().eq('id', sid)
+    const { error } = await supabase.from('class_sessions').delete().eq('id', sid)
+    if (error) return setError(errMsg(error))
     load()
   }
 
   async function deleteClass() {
-    if (!confirm('Delete this class, its sessions and attendance records?')) return
-    await supabase.from('classes').delete().eq('id', id!)
+    if (!confirm('Delete this class, its sessions and attendance records? Exams set for it are kept (unpublished) with all student results.')) return
+    const { error } = await supabase.from('classes').delete().eq('id', id!)
+    if (error) return setError(errMsg(error))
     nav('/classes')
   }
 

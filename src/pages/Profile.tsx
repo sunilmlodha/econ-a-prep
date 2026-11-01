@@ -82,7 +82,7 @@ export default function Profile() {
             <div className="form cols">
               <label>Qualification<select value={f.year_group} onChange={set('year_group')}><option value="AS">AS level</option><option value="A">A level</option></select></label>
               <label>Exam year<input type="number" value={f.exam_year} onChange={set('exam_year')} /></label>
-              <label>Target grade<select value={f.target_grade} onChange={set('target_grade')}><option value="">—</option>{GRADES.slice(0, 6).map(g => <option key={g}>{g}</option>)}</select></label>
+              <label>Target grade<select value={f.target_grade} onChange={set('target_grade')}><option value="">—</option>{GRADES.slice(f.year_group === 'AS' ? 1 : 0, 6).map(g => <option key={g}>{g}</option>)}</select></label>
             </div>
           )}
           <button>Save</button>

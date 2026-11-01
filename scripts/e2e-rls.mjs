@@ -144,6 +144,33 @@ check('assessor marks attempt', !mk.error, mk.error?.message)
 ;({ data: att1 } = await c.student.from('attempts').select('*').eq('id', aid).single())
 check('attempt marked with grade', att1.status === 'marked' && !!att1.grade, `${att1.score}/${att1.max_score} = ${att1.percent}% → ${att1.grade}`)
 
+// exam integrity
+const relist = await c.assessor.rpc('set_exam_questions', { eid: exam.id, qids: [mcqs[0].id] })
+check('questions locked once students have started', !!relist.error, relist.error?.message)
+const sneak = await c.assessor.from('exam_questions').insert({ exam_id: exam.id, question_id: mcqs[0].id === short.id ? mcqs[1].id : 't1-essay-01', position: 99 })
+check('direct question insert into a sat exam refused', !!sneak.error)
+const badDur = await c.assessor.from('exams').insert({ title: 'bad', level: 'A', duration_minutes: 0 })
+check('zero time limit rejected', !!badDur.error)
+
+const { data: ex2 } = await c.assessor.from('exams').insert({ title: 'Demo expiry check', level: 'A', kind: 'quiz', class_id: cls.id, duration_minutes: 5, published: true }).select().single()
+await c.assessor.rpc('set_exam_questions', { eid: ex2.id, qids: [mcqs[1].id] })
+const { data: aid2 } = await c.student.rpc('start_attempt', { eid: ex2.id })
+await admin.from('exams').update({ closes_at: new Date(Date.now() - 600000).toISOString() }).eq('id', ex2.id)
+const lateReveal = await c.student.rpc('reveal_key', { qid: mcqs[1].id })
+check('keys stay hidden while an attempt is open after closing', !!lateReveal.error)
+const lateSave = await c.student.rpc('save_answer', { aid: aid2, qid: mcqs[1].id, resp: 'A' })
+check('answers cannot be saved after the exam closes', !!lateSave.error, lateSave.error?.message)
+const auto = await admin.rpc('auto_submit_expired')
+const { data: a2 } = await c.student.from('attempts').select('status').eq('id', aid2).single()
+check('expired attempts are submitted automatically', !auto.error && a2.status !== 'in_progress', auto.error?.message ?? a2.status)
+
+const { data: tmpCls } = await c.assessor.from('classes').insert({ name: 'Demo temp class', kind: 'tuition', level: 'A' }).select().single()
+const { data: tmpExam } = await c.assessor.from('exams').insert({ title: 'Demo temp exam', level: 'A', class_id: tmpCls.id, published: true }).select().single()
+await c.assessor.from('classes').delete().eq('id', tmpCls.id)
+const { data: kept } = await c.assessor.from('exams').select('class_id, published').eq('id', tmpExam.id).single()
+check('deleting a class keeps its exams, unpublished', !!kept && kept.class_id === null && kept.published === false)
+await c.assessor.from('exams').delete().in('id', [tmpExam.id, ex2.id])
+
 // past paper result + report
 const pp = await c.student.from('past_paper_results').insert({ student_id: people.student.profile.id, past_paper_id: 'A-P1-2019-06', marks: 68, max_marks: 100, grade: 'A', source: 'self' })
 check('student logs past paper', !pp.error, pp.error?.message)

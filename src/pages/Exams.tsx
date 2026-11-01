@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { supabase, type Attempt, type Exam } from '../lib/supabase'
-import { Empty, Grade, Loading, PageHead, fmtDateTime, useViewableStudents, StudentPicker } from '../components/ui'
+import { supabase, errMsg, type Attempt, type Exam } from '../lib/supabase'
+import { Alert, Empty, Grade, Loading, PageHead, fmtDateTime, useViewableStudents, StudentPicker } from '../components/ui'
 
 type ExamRow = Exam & { classes: { name: string } | null; exam_questions: { count: number }[] }
 type AttemptRow = Attempt & { profiles: { full_name: string } | null; exams: { title: string; level: string } | null }
@@ -97,8 +97,17 @@ function AttemptTable({ rows, showStudent }: { rows: AttemptRow[]; showStudent?:
 
 function StudentExams() {
   const { profile } = useAuth()
+  const nav = useNavigate()
   const [exams, setExams] = useState<ExamRow[] | null>(null)
   const [attempts, setAttempts] = useState<AttemptRow[]>([])
+  const [error, setError] = useState('')
+
+  // an attempt left open when the exam closed: answers saved so far are submitted for marking
+  async function submitNow(aid: string) {
+    const { error } = await supabase.rpc('submit_attempt', { aid })
+    if (error && !/already submitted/i.test(error.message)) return setError(errMsg(error))
+    nav(`/attempts/${aid}`)
+  }
 
   useEffect(() => {
     supabase.from('exams').select('*, classes(name), exam_questions(count)').eq('published', true).order('created_at', { ascending: false })
@@ -112,6 +121,7 @@ function StudentExams() {
   return (
     <>
       <PageHead title="Exams" sub="Quizzes, homework and timed mocks set by your assessors" />
+      <Alert kind="error">{error}</Alert>
       <div className="card">
         <h2>Available</h2>
         {exams.length === 0 ? <Empty>No exams have been set for you yet.</Empty> : (
@@ -130,6 +140,7 @@ function StudentExams() {
                     {e.description && <div style={{ fontSize: '0.9rem' }}>{e.description}</div>}
                   </div>
                   {mine && mine.status !== 'in_progress' ? <Link className="btn secondary sm" to={`/attempts/${mine.id}`}>View result</Link>
+                    : mine && closed ? <button className="sm" onClick={() => submitNow(mine.id)}>Submit now</button>
                     : closed ? <span className="badge">{e.opens_at && e.opens_at > now ? `Opens ${fmtDateTime(e.opens_at)}` : 'Closed'}</span>
                       : <Link className="btn sm" to={`/exams/${e.id}/take`}>{mine ? 'Continue' : 'Start'}</Link>}
                 </div>

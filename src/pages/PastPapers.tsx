@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase, errMsg, type PastPaper, type PaperResult } from '../lib/supabase'
 import { gradeFor } from '../lib/grades'
+import { localIso } from '../lib/timetable'
 import { PEARSON_LINKS, type Level } from '../lib/spec'
 import { Alert, Empty, Grade, Loading, PageHead, StudentPicker, Stat, fmtDate, useViewableStudents } from '../components/ui'
 
@@ -118,7 +119,7 @@ export default function PastPapers() {
 
 function LogResult({ paper, studentId, staff, onDone }: { paper: PastPaper; studentId: string; staff: boolean; onDone: () => void }) {
   const [marks, setMarks] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(localIso())
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
   const pct = marks ? (Number(marks) * 100) / paper.total_marks : null
