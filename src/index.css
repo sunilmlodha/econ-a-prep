@@ -207,3 +207,4 @@ tr:last-child td { border-bottom: none; }
 .chart .bar-rect { fill: var(--brand); }
 .chart .target { stroke: var(--accent); stroke-dasharray: 4 4; }
 .grid + .alert, .alert + .card, .stat-row + .alert { margin-top: 16px; }
+.card + .grid, .grid + .card, .grid + .grid { margin-top: 16px; }
