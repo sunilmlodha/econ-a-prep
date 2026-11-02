@@ -82,7 +82,7 @@ export default function AttemptView() {
           {' '}Your assessor can review and change these marks.
         </Alert>
       )}
-      {selfMarked && <Alert>These marks were self-assessed by the student{profile?.role === 'assessor' || profile?.role === 'admin' ? ' — review them and save to confirm or change them.' : '.'}</Alert>}
+      {selfMarked && !(a.student_id === profile?.id && profile?.role !== 'student') && <Alert>These marks were self-assessed by the student{profile?.role === 'assessor' || profile?.role === 'admin' ? ' — review them and save to confirm or change them.' : '.'}</Alert>}
       {a.feedback && !canMark && <div className="card mt"><h2>{selfMarked ? 'Reflection' : 'Assessor feedback'}</h2><p style={{ whiteSpace: 'pre-wrap' }}>{a.feedback}</p></div>}
       <Alert kind="error">{error}</Alert>
       <Alert kind="success">{ok}</Alert>
